@@ -45,8 +45,8 @@ func main() {
 	set.Add("b2", 1)
 
 	input, output := tf64.NewV(2, 4), tf64.NewV(1, 4)
-	input.X = append(input.X, 0, 0, 1, 0, 0, 1, 1, 1)
-	output.X = append(output.X, 0, 1, 1, 0)
+	input.X = append(input.X, -1, -1, 1, -1, -1, 1, 1, 1)
+	output.X = append(output.X, -1, 1, 1, -1)
 
 	for i := range set.Weights {
 		w := set.Weights[i]
@@ -69,11 +69,11 @@ func main() {
 		}
 	}
 
-	l1 := tf64.Sigmoid(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
-	l2 := tf64.Sigmoid(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
-	loss := tf64.Avg(tf64.Quadratic(l2, output.Meta()))
+	l1 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
+	l2 := tf64.TanH(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
+	loss := tf64.Avg(tf64.Hadamard(tf64.Quadratic(l2, output.Meta()), tf64.Entropy(l1)))
 
-	iterations := 1024
+	iterations := 2 * 1024
 	points := make(plotter.XYs, 0, iterations)
 	start := time.Now()
 	pow := func(x float64, i int) float64 {
@@ -143,4 +143,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	l1(func(a *tf64.V) bool {
+		for i := 0; i < len(a.X); i += a.S[0] {
+			fmt.Println(a.X[i : i+a.S[0]])
+		}
+		return true
+	})
+
+	l2(func(a *tf64.V) bool {
+		fmt.Println(a.X)
+		return true
+	})
 }
