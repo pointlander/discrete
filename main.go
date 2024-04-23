@@ -83,8 +83,11 @@ func main() {
 		}
 		return y
 	}
-	_ = pow
 	for i := 0; i < iterations; i++ {
+		set.Zero()
+		input.Zero()
+		output.Zero()
+
 		cost := tf64.Gradient(loss).X[0]
 		norm := 0.0
 		for _, p := range set.Weights {
@@ -93,14 +96,14 @@ func main() {
 			}
 		}
 		norm = math.Sqrt(norm)
-		//b1, b2 := pow(B1, 0), pow(B2, 0)
+		b1, b2 := pow(B1, i), pow(B2, i)
 		scaling := 1.0
 		if norm > 1 {
 			scaling = 1 / norm
 		}
 		for _, w := range set.Weights {
 			for l, d := range w.D {
-				/*g := d * scaling
+				g := d * scaling
 				m := B1*w.States[StateM][l] + (1-B1)*g
 				v := B2*w.States[StateV][l] + (1-B2)*g*g
 				w.States[StateM][l] = m
@@ -110,8 +113,7 @@ func main() {
 				if vhat < 0 {
 					vhat = 0
 				}
-				w.X[l] -= Eta * mhat / (math.Sqrt(vhat) + 1e-8)*/
-				w.X[l] -= Eta * d * scaling
+				w.X[l] -= Eta * mhat / (math.Sqrt(vhat) + 1e-8)
 			}
 		}
 		fmt.Println(i, cost, time.Now().Sub(start))
