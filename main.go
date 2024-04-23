@@ -39,10 +39,12 @@ const (
 func main() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
-	set.Add("w1", 2, 3)
-	set.Add("b1", 3)
-	set.Add("w2", 3, 1)
-	set.Add("b2", 1)
+	set.Add("w1", 2, 2)
+	set.Add("b1", 2)
+	set.Add("w2", 4, 4)
+	set.Add("b2", 4)
+	set.Add("w3", 4, 1)
+	set.Add("b3", 1)
 
 	input, output := tf64.NewV(2, 4), tf64.NewV(1, 4)
 	input.X = append(input.X, -1, -1, 1, -1, -1, 1, 1, 1)
@@ -69,9 +71,11 @@ func main() {
 		}
 	}
 
-	l1 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
-	l2 := tf64.TanH(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
-	loss := tf64.Avg(tf64.Hadamard(tf64.Quadratic(l2, output.Meta()), tf64.Entropy(l1)))
+	l1 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
+	l2 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
+	//l3 := tf64.Add(tf64.Mul(set.Get("w3"), l2), set.Get("b3"))
+	//loss := tf64.Avg(tf64.Hadamard(tf64.Quadratic(l3, output.Meta()), tf64.Entropy(l2)))
+	loss := tf64.Entropy(l2)
 
 	iterations := 2 * 1024
 	points := make(plotter.XYs, 0, iterations)
@@ -119,7 +123,7 @@ func main() {
 		fmt.Println(i, cost, time.Now().Sub(start))
 		start = time.Now()
 		points = append(points, plotter.XY{X: float64(i), Y: float64(cost)})
-		if cost < .001 {
+		if cost < .00001 {
 			fmt.Println("stopping...")
 			break
 		}
@@ -144,15 +148,15 @@ func main() {
 		panic(err)
 	}
 
-	l1(func(a *tf64.V) bool {
+	l2(func(a *tf64.V) bool {
 		for i := 0; i < len(a.X); i += a.S[0] {
 			fmt.Println(a.X[i : i+a.S[0]])
 		}
 		return true
 	})
 
-	l2(func(a *tf64.V) bool {
+	/*l3(func(a *tf64.V) bool {
 		fmt.Println(a.X)
 		return true
-	})
+	})*/
 }
