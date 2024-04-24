@@ -169,10 +169,10 @@ func XOR() {
 func IRIS() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
-	set.Add("w1", 4, 8)
-	set.Add("b1", 8)
-	set.Add("w2", 16, 16)
-	set.Add("b2", 16)
+	set.Add("w1", 4, 16)
+	set.Add("b1", 16)
+	set.Add("w2", 32, 4)
+	set.Add("b2", 4)
 
 	datum, err := iris.Load()
 	if err != nil {
@@ -288,7 +288,22 @@ func IRIS() {
 
 	l2(func(a *tf64.V) bool {
 		for i := 0; i < len(a.X); i += a.S[0] {
-			fmt.Println(a.X[i : i+a.S[0]])
+			max, index := 0.0, 0
+			for key, value := range a.X[i : i+a.S[0]] {
+				if value > max {
+					max, index = value, key
+				}
+			}
+			println(max, index)
+		}
+
+		ii := 0
+		for i := 0; i < len(a.X); i += a.S[0] {
+			if ii%50 == 0 {
+				fmt.Println()
+			}
+			fmt.Println(ii, a.X[i:i+a.S[0]])
+			ii++
 		}
 		return true
 	})
