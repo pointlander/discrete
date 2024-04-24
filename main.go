@@ -44,16 +44,13 @@ const (
 func XOR() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
-	set.Add("w1", 2, 2)
-	set.Add("b1", 2)
-	set.Add("w2", 4, 4)
+	set.Add("w1", 2, 8)
+	set.Add("b1", 8)
+	set.Add("w2", 16, 4)
 	set.Add("b2", 4)
-	set.Add("w3", 4, 1)
-	set.Add("b3", 1)
 
-	input, output := tf64.NewV(2, 4), tf64.NewV(1, 4)
+	input := tf64.NewV(2, 4)
 	input.X = append(input.X, -1, -1, 1, -1, -1, 1, 1, 1)
-	output.X = append(output.X, -1, 1, 1, -1)
 
 	for i := range set.Weights {
 		w := set.Weights[i]
@@ -78,11 +75,9 @@ func XOR() {
 
 	l1 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
 	l2 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
-	//l3 := tf64.Add(tf64.Mul(set.Get("w3"), l2), set.Get("b3"))
-	//loss := tf64.Avg(tf64.Hadamard(tf64.Quadratic(l3, output.Meta()), tf64.Entropy(l2)))
-	loss := tf64.Entropy(l2)
+	loss := tf64.Avg(tf64.Entropy(l2))
 
-	iterations := 2 * 1024
+	iterations := 64
 	points := make(plotter.XYs, 0, iterations)
 	start := time.Now()
 	pow := func(x float64, i int) float64 {
@@ -95,7 +90,6 @@ func XOR() {
 	for i := 0; i < iterations; i++ {
 		set.Zero()
 		input.Zero()
-		output.Zero()
 
 		cost := tf64.Gradient(loss).X[0]
 		norm := 0.0
@@ -159,11 +153,6 @@ func XOR() {
 		}
 		return true
 	})
-
-	/*l3(func(a *tf64.V) bool {
-		fmt.Println(a.X)
-		return true
-	})*/
 }
 
 // IRIS iris mode
@@ -215,7 +204,7 @@ func IRIS() {
 
 	l1 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
 	l2 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
-	loss := tf64.Entropy(l2)
+	loss := tf64.Avg(tf64.Entropy(l2))
 
 	iterations := 2 * 1024
 	points := make(plotter.XYs, 0, iterations)
@@ -262,7 +251,7 @@ func IRIS() {
 		fmt.Println(i, cost, time.Now().Sub(start))
 		start = time.Now()
 		points = append(points, plotter.XY{X: float64(i), Y: float64(cost)})
-		if cost < .001 {
+		if cost < .01 {
 			fmt.Println("stopping...")
 			break
 		}
