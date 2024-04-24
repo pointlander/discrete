@@ -280,10 +280,9 @@ func IRIS() {
 		rawData := make([][]float64, len(datum.Fisher))
 		ii := 0
 		for i := 0; i < len(a.X); i += a.S[0] {
-			rawData[ii] = append(rawData[ii], 1/a.X[i])
-			rawData[ii] = append(rawData[ii], 1/a.X[i+1])
-			rawData[ii] = append(rawData[ii], 1/a.X[i+2])
-			rawData[ii] = append(rawData[ii], 1/a.X[i+3])
+			for j := 0; j < a.S[0]; j++ {
+				rawData[ii] = append(rawData[ii], 1/a.X[i+j])
+			}
 			ii++
 		}
 		clusters, _, err := kmeans.Kmeans(3, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
