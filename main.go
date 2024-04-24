@@ -19,6 +19,7 @@ import (
 
 	"github.com/pointlander/datum/iris"
 	"github.com/pointlander/gradient/tf64"
+	"github.com/pointlander/kmeans"
 )
 
 const (
@@ -287,6 +288,23 @@ func IRIS() {
 	}
 
 	l2(func(a *tf64.V) bool {
+		rawData := make([][]float64, len(datum.Fisher))
+		ii := 0
+		for i := 0; i < len(a.X); i += a.S[0] {
+			rawData[ii] = append(rawData[ii], 1/a.X[i])
+			rawData[ii] = append(rawData[ii], 1/a.X[i+1])
+			rawData[ii] = append(rawData[ii], 1/a.X[i+2])
+			rawData[ii] = append(rawData[ii], 1/a.X[i+3])
+			ii++
+		}
+		clusters, _, err := kmeans.Kmeans(3, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+		if err != nil {
+			panic(err)
+		}
+		for i, v := range clusters {
+			fmt.Println(datum.Fisher[i].Label, i, v)
+		}
+
 		for i := 0; i < len(a.X); i += a.S[0] {
 			max, index := 0.0, 0
 			for key, value := range a.X[i : i+a.S[0]] {
@@ -297,7 +315,7 @@ func IRIS() {
 			println(max, index)
 		}
 
-		ii := 0
+		ii = 0
 		for i := 0; i < len(a.X); i += a.S[0] {
 			if ii%50 == 0 {
 				fmt.Println()
