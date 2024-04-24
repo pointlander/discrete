@@ -281,11 +281,45 @@ func IRIS() {
 		ii := 0
 		for i := 0; i < len(a.X); i += a.S[0] {
 			for j := 0; j < a.S[0]; j++ {
-				rawData[ii] = append(rawData[ii], 1/a.X[i+j])
+				rawData[ii] = append(rawData[ii], a.X[i+j])
 			}
 			ii++
 		}
-		clusters, _, err := kmeans.Kmeans(3, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+		sample := func(rngSeed int64) (x [150][]int) {
+			clusters, _, err := kmeans.Kmeans(rngSeed, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+			if err != nil {
+				panic(err)
+			}
+			for i := range x {
+				x[i] = make([]int, 150)
+				target := clusters[i]
+				for j, v := range clusters {
+					if v == target {
+						x[i][j]++
+					}
+				}
+			}
+			return x
+		}
+		var sum [150][]int
+		for i := range sum {
+			sum[i] = make([]int, 150)
+		}
+		for i := 0; i < 100; i++ {
+			x := sample(int64(i) + 1)
+			for i := range sum {
+				for j := range sum[i] {
+					sum[i][j] += x[i][j]
+				}
+			}
+		}
+		rawData = make([][]float64, len(datum.Fisher))
+		for i := 0; i < len(sum); i++ {
+			for _, value := range sum[i] {
+				rawData[i] = append(rawData[i], float64(value))
+			}
+		}
+		clusters, _, err := kmeans.Kmeans(1, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
 		if err != nil {
 			panic(err)
 		}
@@ -293,7 +327,7 @@ func IRIS() {
 			fmt.Println(datum.Fisher[i].Label, i, v)
 		}
 
-		for i := 0; i < len(a.X); i += a.S[0] {
+		/*for i := 0; i < len(a.X); i += a.S[0] {
 			max, index := 0.0, 0
 			for key, value := range a.X[i : i+a.S[0]] {
 				if value > max {
@@ -310,7 +344,7 @@ func IRIS() {
 			}
 			fmt.Println(ii, a.X[i:i+a.S[0]])
 			ii++
-		}
+		}*/
 		return true
 	})
 }
