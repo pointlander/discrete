@@ -319,6 +319,42 @@ func IRIS() {
 		panic(err)
 	}
 
+	entropy := func(clusters []int) {
+		ab, ba := [3][3]float64{}, [3][3]float64{}
+		for i := range datum.Fisher {
+			a := int(iris.Labels[datum.Fisher[i].Label])
+			b := clusters[i]
+			ab[a][b]++
+			ba[b][a]++
+		}
+		entropy := 0.0
+		for i := 0; i < 3; i++ {
+			entropy += (1.0 / 3.0) * math.Log(1.0/3.0)
+		}
+		fmt.Println(-entropy, -(1.0/3.0)*math.Log(1.0/3.0))
+		for i := range ab {
+			entropy := 0.0
+			for _, value := range ab[i] {
+				if value > 0 {
+					p := value / 150
+					entropy += p * math.Log(p)
+				}
+			}
+			entropy = -entropy
+			fmt.Println("ab", i, entropy)
+		}
+		for i := range ba {
+			entropy := 0.0
+			for _, value := range ba[i] {
+				if value > 0 {
+					p := value / 150
+					entropy += p * math.Log(p)
+				}
+			}
+			entropy = -entropy
+			fmt.Println("ba", i, entropy)
+		}
+	}
 	l2(func(a *tf64.V) bool {
 		rawData := make([][]float64, len(datum.Fisher))
 		ii := 0
@@ -332,6 +368,7 @@ func IRIS() {
 		for i, v := range clusters {
 			fmt.Println(datum.Fisher[i].Label, i, v)
 		}
+		entropy(clusters)
 
 		fmt.Println()
 		rawData = make([][]float64, len(datum.Fisher))
@@ -342,6 +379,7 @@ func IRIS() {
 		for i, v := range clusters {
 			fmt.Println(datum.Fisher[i].Label, i, v)
 		}
+		entropy(clusters)
 
 		/*for i := 0; i < len(a.X); i += a.S[0] {
 			max, index := 0.0, 0
