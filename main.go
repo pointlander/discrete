@@ -5,6 +5,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
 	"math/rand"
@@ -36,7 +37,8 @@ const (
 	StateTotal
 )
 
-func main() {
+// XOR xor mode
+func XOR() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
 	set.Add("w1", 2, 2)
@@ -159,4 +161,28 @@ func main() {
 		fmt.Println(a.X)
 		return true
 	})*/
+}
+
+// IRIS iris mode
+func IRIS() {
+
+}
+
+var (
+	// FlagXOR is the xor mode
+	FlagXOR = flag.Bool("xor", false, "xor mode")
+	// FlagIRIS is the iris mode
+	FlagIRIS = flag.Bool("iris", false, "iris mode")
+)
+
+func main() {
+	flag.Parse()
+
+	if *FlagXOR {
+		XOR()
+		return
+	} else if *FlagIRIS {
+		IRIS()
+		return
+	}
 }
