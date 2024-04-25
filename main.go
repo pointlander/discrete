@@ -156,14 +156,12 @@ func XOR() {
 }
 
 func meta(rawData [][]float64) []int {
-	length := len(rawData)
-	sample := func(rngSeed int64) (x [150][]int) {
+	sample := func(rngSeed int64, x [][]float64) {
 		clusters, _, err := kmeans.Kmeans(rngSeed, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
 		if err != nil {
 			panic(err)
 		}
 		for i := range x {
-			x[i] = make([]int, 150)
 			target := clusters[i]
 			for j, v := range clusters {
 				if v == target {
@@ -171,27 +169,16 @@ func meta(rawData [][]float64) []int {
 				}
 			}
 		}
-		return x
 	}
-	var sum [150][]int
-	for i := range sum {
-		sum[i] = make([]int, 150)
+	length := len(rawData)
+	meta := make([][]float64, length)
+	for i := range meta {
+		meta[i] = make([]float64, length)
 	}
 	for i := 0; i < 100; i++ {
-		x := sample(int64(i) + 1)
-		for i := range sum {
-			for j := range sum[i] {
-				sum[i][j] += x[i][j]
-			}
-		}
+		sample(int64(i)+1, meta)
 	}
-	rawData = make([][]float64, length)
-	for i := 0; i < len(sum); i++ {
-		for _, value := range sum[i] {
-			rawData[i] = append(rawData[i], float64(value))
-		}
-	}
-	clusters, _, err := kmeans.Kmeans(1, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+	clusters, _, err := kmeans.Kmeans(1, meta, 3, kmeans.SquaredEuclideanDistance, -1)
 	if err != nil {
 		panic(err)
 	}
