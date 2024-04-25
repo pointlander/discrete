@@ -212,15 +212,18 @@ func IRIS() {
 		panic(err)
 	}
 
+	max := 0.0
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			if measure > max {
+				max = measure
+			}
+		}
+	}
 	input := tf64.NewV(4, 150)
 	for _, data := range datum.Fisher {
-		sum := 0.0
 		for _, measure := range data.Measures {
-			sum += measure
-		}
-		length := math.Sqrt(sum)
-		for _, measure := range data.Measures {
-			input.X = append(input.X, measure/length)
+			input.X = append(input.X, measure/max)
 		}
 	}
 
@@ -373,7 +376,9 @@ func IRIS() {
 		fmt.Println()
 		rawData = make([][]float64, len(datum.Fisher))
 		for i, data := range datum.Fisher {
-			rawData[i] = data.Measures
+			for _, value := range data.Measures {
+				rawData[i] = append(rawData[i], value/max)
+			}
 		}
 		clusters = meta(rawData)
 		for i, v := range clusters {
