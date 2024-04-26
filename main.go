@@ -356,7 +356,7 @@ func IRIS() {
 		}
 		clusters := meta(rawData)
 		for i, v := range clusters {
-			fmt.Println(datum.Fisher[i].Label, i, v)
+			fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
 		}
 		entropy(clusters)
 
@@ -369,28 +369,10 @@ func IRIS() {
 		}
 		clusters = meta(rawData)
 		for i, v := range clusters {
-			fmt.Println(datum.Fisher[i].Label, i, v)
+			fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
 		}
 		entropy(clusters)
 
-		/*for i := 0; i < len(a.X); i += a.S[0] {
-			max, index := 0.0, 0
-			for key, value := range a.X[i : i+a.S[0]] {
-				if value > max {
-					max, index = value, key
-				}
-			}
-			println(max, index)
-		}
-
-		ii = 0
-		for i := 0; i < len(a.X); i += a.S[0] {
-			if ii%50 == 0 {
-				fmt.Println()
-			}
-			fmt.Println(ii, a.X[i:i+a.S[0]])
-			ii++
-		}*/
 		return true
 	})
 }
