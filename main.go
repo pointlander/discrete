@@ -377,11 +377,18 @@ func IRIS() {
 	})
 }
 
+// Auto is the auto mode
+func Auto() {
+
+}
+
 var (
 	// FlagXOR is the xor mode
 	FlagXOR = flag.Bool("xor", false, "xor mode")
 	// FlagIRIS is the iris mode
 	FlagIRIS = flag.Bool("iris", false, "iris mode")
+	// FlagAuto is the auto mode
+	FlagAuto = flag.Bool("auto", false, "auto mode")
 )
 
 func main() {
@@ -392,6 +399,9 @@ func main() {
 		return
 	} else if *FlagIRIS {
 		IRIS()
+		return
+	} else if *FlagAuto {
+		Auto()
 		return
 	}
 }
