@@ -381,12 +381,15 @@ func IRIS() {
 func Auto() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
-	set.Add("w1", 32, 32)
-	set.Add("b1", 32)
-	set.Add("w2", 32, 32)
-	set.Add("b2", 32)
+	set.Add("w1", 4, 16)
+	set.Add("b1", 16)
+	set.Add("w2", 32, 8)
+	set.Add("b2", 8)
+
 	set.Add("w3", 4, 16)
 	set.Add("b3", 16)
+	set.Add("w4", 32, 8)
+	set.Add("b4", 8)
 
 	datum, err := iris.Load()
 	if err != nil {
@@ -429,11 +432,12 @@ func Auto() {
 		}
 	}
 
-	ee := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w3"), input.Meta()), set.Get("b3")))
-	aa := tf64.Add(tf64.Mul(set.Get("w1"), ee), set.Get("b1"))
-	bb := tf64.Add(tf64.Mul(set.Get("w2"), ee), set.Get("b2"))
-	adj := tf64.Softmax(tf64.Mul(aa, bb))
-	loss := tf64.Avg(tf64.Entropy(adj))
+	l1 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
+	l2 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
+	l3 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w3"), input.Meta()), set.Get("b3")))
+	l4 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w4"), l3), set.Get("b4")))
+	cat := tf64.Concat(l2, l4)
+	loss := tf64.Add(tf64.Avg(tf64.Entropy(l2)), tf64.Avg(tf64.Entropy(l4)))
 
 	iterations := 2 * 1024
 	points := make(plotter.XYs, 0, iterations)
@@ -480,7 +484,7 @@ func Auto() {
 		fmt.Println(i, cost, time.Now().Sub(start))
 		start = time.Now()
 		points = append(points, plotter.XY{X: float64(i), Y: float64(cost)})
-		if cost < .003 {
+		if cost < .01 {
 			fmt.Println("stopping...")
 			break
 		}
@@ -541,7 +545,7 @@ func Auto() {
 			fmt.Println("ba", i, entropy)
 		}
 	}
-	adj(func(a *tf64.V) bool {
+	cat(func(a *tf64.V) bool {
 		rawData := make([][]float64, len(datum.Fisher))
 		ii := 0
 		for i := 0; i < len(a.X); i += a.S[0] {
