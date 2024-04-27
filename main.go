@@ -377,19 +377,50 @@ func IRIS() {
 	})
 }
 
+func meta2(rawData, rawData2 [][]float64) []int {
+	sample := func(rawData [][]float64, rngSeed int64, x [][]float64) {
+		clusters, _, err := kmeans.Kmeans(rngSeed, rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+		if err != nil {
+			panic(err)
+		}
+		for i := range x {
+			target := clusters[i]
+			for j, v := range clusters {
+				if v == target {
+					x[i][j]++
+				}
+			}
+		}
+	}
+	length := len(rawData)
+	meta := make([][]float64, length)
+	for i := range meta {
+		meta[i] = make([]float64, length)
+	}
+	for i := 0; i < 100; i++ {
+		sample(rawData, int64(i)+1, meta)
+		sample(rawData2, int64(i)+1, meta)
+	}
+	clusters, _, err := kmeans.Kmeans(1, meta, 3, kmeans.SquaredEuclideanDistance, -1)
+	if err != nil {
+		panic(err)
+	}
+	return clusters
+}
+
 // Auto is the auto mode
 func Auto() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
 	set.Add("w1", 4, 16)
 	set.Add("b1", 16)
-	set.Add("w2", 32, 8)
-	set.Add("b2", 8)
+	set.Add("w2", 32, 4)
+	set.Add("b2", 4)
 
 	set.Add("w3", 4, 16)
 	set.Add("b3", 16)
-	set.Add("w4", 32, 8)
-	set.Add("b4", 8)
+	set.Add("w4", 32, 4)
+	set.Add("b4", 4)
 
 	datum, err := iris.Load()
 	if err != nil {
@@ -434,10 +465,7 @@ func Auto() {
 
 	l1 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w1"), input.Meta()), set.Get("b1")))
 	l2 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w2"), l1), set.Get("b2")))
-	l3 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w3"), input.Meta()), set.Get("b3")))
-	l4 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w4"), l3), set.Get("b4")))
-	cat := tf64.Concat(l2, l4)
-	loss := tf64.Add(tf64.Avg(tf64.Entropy(l2)), tf64.Avg(tf64.Entropy(l4)))
+	loss := tf64.Avg(tf64.Entropy(l2))
 
 	iterations := 2 * 1024
 	points := make(plotter.XYs, 0, iterations)
@@ -449,6 +477,51 @@ func Auto() {
 		}
 		return y
 	}
+	for i := 0; i < iterations; i++ {
+		set.Zero()
+		input.Zero()
+
+		cost := tf64.Gradient(loss).X[0] / 150.0
+		norm := 0.0
+		for _, p := range set.Weights {
+			for _, d := range p.D {
+				norm += d * d
+			}
+		}
+		norm = math.Sqrt(norm)
+		b1, b2 := pow(B1, i), pow(B2, i)
+		scaling := 1.0
+		if norm > 1 {
+			scaling = 1 / norm
+		}
+		for _, w := range set.Weights {
+			for l, d := range w.D {
+				g := d * scaling
+				m := B1*w.States[StateM][l] + (1-B1)*g
+				v := B2*w.States[StateV][l] + (1-B2)*g*g
+				w.States[StateM][l] = m
+				w.States[StateV][l] = v
+				mhat := m / (1 - b1)
+				vhat := v / (1 - b2)
+				if vhat < 0 {
+					vhat = 0
+				}
+				w.X[l] -= Eta * mhat / (math.Sqrt(vhat) + 1e-8)
+			}
+		}
+		fmt.Println(i, cost, time.Now().Sub(start))
+		start = time.Now()
+		points = append(points, plotter.XY{X: float64(i), Y: float64(cost)})
+		if cost < .01 {
+			fmt.Println("stopping...")
+			break
+		}
+	}
+
+	l3 := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w3"), input.Meta()), set.Get("b3")))
+	l4 := tf64.Softmax(tf64.Add(tf64.Mul(set.Get("w4"), l3), set.Get("b4")))
+	loss = tf64.Avg(tf64.Entropy(l4))
+
 	for i := 0; i < iterations; i++ {
 		set.Zero()
 		input.Zero()
@@ -545,34 +618,45 @@ func Auto() {
 			fmt.Println("ba", i, entropy)
 		}
 	}
-	cat(func(a *tf64.V) bool {
-		rawData := make([][]float64, len(datum.Fisher))
-		ii := 0
-		for i := 0; i < len(a.X); i += a.S[0] {
-			for j := 0; j < a.S[0]; j++ {
-				rawData[ii] = append(rawData[ii], a.X[i+j])
+	l2(func(a *tf64.V) bool {
+		l4(func(b *tf64.V) bool {
+			rawData := make([][]float64, len(datum.Fisher))
+			ii := 0
+			for i := 0; i < len(a.X); i += a.S[0] {
+				for j := 0; j < a.S[0]; j++ {
+					rawData[ii] = append(rawData[ii], a.X[i+j])
+				}
+				ii++
 			}
-			ii++
-		}
-		clusters := meta(rawData)
-		for i, v := range clusters {
-			fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
-		}
-		entropy(clusters)
-
-		fmt.Println()
-		rawData = make([][]float64, len(datum.Fisher))
-		for i, data := range datum.Fisher {
-			for _, value := range data.Measures {
-				rawData[i] = append(rawData[i], value/max)
+			rawData2 := make([][]float64, len(datum.Fisher))
+			ii = 0
+			for i := 0; i < len(b.X); i += b.S[0] {
+				for j := 0; j < b.S[0]; j++ {
+					rawData2[ii] = append(rawData2[ii], b.X[i+j])
+				}
+				ii++
 			}
-		}
-		clusters = meta(rawData)
-		for i, v := range clusters {
-			fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
-		}
-		entropy(clusters)
+			clusters := meta2(rawData, rawData2)
+			for i, v := range clusters {
+				fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
+			}
+			entropy(clusters)
 
+			fmt.Println()
+			rawData = make([][]float64, len(datum.Fisher))
+			for i, data := range datum.Fisher {
+				for _, value := range data.Measures {
+					rawData[i] = append(rawData[i], value/max)
+				}
+			}
+			clusters = meta(rawData)
+			for i, v := range clusters {
+				fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
+			}
+			entropy(clusters)
+
+			return true
+		})
 		return true
 	})
 }
