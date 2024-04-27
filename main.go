@@ -408,8 +408,8 @@ func meta2(rawData, rawData2 [][]float64) []int {
 	return clusters
 }
 
-// Auto is the auto mode
-func Auto() {
+// Multi is the multi mode
+func Multi() {
 	rng := rand.New(rand.NewSource(1))
 	set := tf64.NewSet()
 	set.Add("w1", 4, 16)
@@ -666,8 +666,8 @@ var (
 	FlagXOR = flag.Bool("xor", false, "xor mode")
 	// FlagIRIS is the iris mode
 	FlagIRIS = flag.Bool("iris", false, "iris mode")
-	// FlagAuto is the auto mode
-	FlagAuto = flag.Bool("auto", false, "auto mode")
+	// FlagMulti is the multi mode
+	FlagMulti = flag.Bool("multi", false, "multi mode")
 )
 
 func main() {
@@ -679,8 +679,8 @@ func main() {
 	} else if *FlagIRIS {
 		IRIS()
 		return
-	} else if *FlagAuto {
-		Auto()
+	} else if *FlagMulti {
+		Multi()
 		return
 	}
 }
