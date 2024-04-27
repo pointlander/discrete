@@ -379,7 +379,198 @@ func IRIS() {
 
 // Auto is the auto mode
 func Auto() {
+	rng := rand.New(rand.NewSource(1))
+	set := tf64.NewSet()
+	set.Add("w1", 32, 32)
+	set.Add("b1", 32)
+	set.Add("w2", 32, 32)
+	set.Add("b2", 32)
+	set.Add("w3", 4, 16)
+	set.Add("b3", 16)
 
+	datum, err := iris.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	max := 0.0
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			if measure > max {
+				max = measure
+			}
+		}
+	}
+	input := tf64.NewV(4, 150)
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			input.X = append(input.X, measure/max)
+		}
+	}
+
+	for i := range set.Weights {
+		w := set.Weights[i]
+		size := w.S[0] * w.S[1]
+		if strings.HasPrefix(w.N, "b") {
+			w.X = w.X[:size]
+			w.States = make([][]float64, StateTotal)
+			for i := range w.States {
+				w.States[i] = make([]float64, len(w.X))
+			}
+			continue
+		}
+		factor := math.Sqrt(2.0 / float64(w.S[0]))
+		for i := 0; i < size; i++ {
+			w.X = append(w.X, rng.NormFloat64()*factor)
+		}
+		w.States = make([][]float64, StateTotal)
+		for i := range w.States {
+			w.States[i] = make([]float64, len(w.X))
+		}
+	}
+
+	ee := tf64.Everett(tf64.Add(tf64.Mul(set.Get("w3"), input.Meta()), set.Get("b3")))
+	aa := tf64.Add(tf64.Mul(set.Get("w1"), ee), set.Get("b1"))
+	bb := tf64.Add(tf64.Mul(set.Get("w2"), ee), set.Get("b2"))
+	adj := tf64.Softmax(tf64.Mul(aa, bb))
+	loss := tf64.Avg(tf64.Entropy(adj))
+
+	iterations := 2 * 1024
+	points := make(plotter.XYs, 0, iterations)
+	start := time.Now()
+	pow := func(x float64, i int) float64 {
+		y := math.Pow(x, float64(i+1))
+		if math.IsNaN(y) || math.IsInf(y, 0) {
+			return 0
+		}
+		return y
+	}
+	for i := 0; i < iterations; i++ {
+		set.Zero()
+		input.Zero()
+
+		cost := tf64.Gradient(loss).X[0] / 150.0
+		norm := 0.0
+		for _, p := range set.Weights {
+			for _, d := range p.D {
+				norm += d * d
+			}
+		}
+		norm = math.Sqrt(norm)
+		b1, b2 := pow(B1, i), pow(B2, i)
+		scaling := 1.0
+		if norm > 1 {
+			scaling = 1 / norm
+		}
+		for _, w := range set.Weights {
+			for l, d := range w.D {
+				g := d * scaling
+				m := B1*w.States[StateM][l] + (1-B1)*g
+				v := B2*w.States[StateV][l] + (1-B2)*g*g
+				w.States[StateM][l] = m
+				w.States[StateV][l] = v
+				mhat := m / (1 - b1)
+				vhat := v / (1 - b2)
+				if vhat < 0 {
+					vhat = 0
+				}
+				w.X[l] -= Eta * mhat / (math.Sqrt(vhat) + 1e-8)
+			}
+		}
+		fmt.Println(i, cost, time.Now().Sub(start))
+		start = time.Now()
+		points = append(points, plotter.XY{X: float64(i), Y: float64(cost)})
+		if cost < .003 {
+			fmt.Println("stopping...")
+			break
+		}
+	}
+
+	p := plot.New()
+
+	p.Title.Text = "epochs vs cost"
+	p.X.Label.Text = "epochs"
+	p.Y.Label.Text = "cost"
+
+	scatter, err := plotter.NewScatter(points)
+	if err != nil {
+		panic(err)
+	}
+	scatter.GlyphStyle.Radius = vg.Length(1)
+	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+	p.Add(scatter)
+
+	err = p.Save(8*vg.Inch, 8*vg.Inch, "epochs.png")
+	if err != nil {
+		panic(err)
+	}
+
+	entropy := func(clusters []int) {
+		ab, ba := [3][3]float64{}, [3][3]float64{}
+		for i := range datum.Fisher {
+			a := int(iris.Labels[datum.Fisher[i].Label])
+			b := clusters[i]
+			ab[a][b]++
+			ba[b][a]++
+		}
+		entropy := 0.0
+		for i := 0; i < 3; i++ {
+			entropy += (1.0 / 3.0) * math.Log(1.0/3.0)
+		}
+		fmt.Println(-entropy, -(1.0/3.0)*math.Log(1.0/3.0))
+		for i := range ab {
+			entropy := 0.0
+			for _, value := range ab[i] {
+				if value > 0 {
+					p := value / 150
+					entropy += p * math.Log(p)
+				}
+			}
+			entropy = -entropy
+			fmt.Println("ab", i, entropy)
+		}
+		for i := range ba {
+			entropy := 0.0
+			for _, value := range ba[i] {
+				if value > 0 {
+					p := value / 150
+					entropy += p * math.Log(p)
+				}
+			}
+			entropy = -entropy
+			fmt.Println("ba", i, entropy)
+		}
+	}
+	adj(func(a *tf64.V) bool {
+		rawData := make([][]float64, len(datum.Fisher))
+		ii := 0
+		for i := 0; i < len(a.X); i += a.S[0] {
+			for j := 0; j < a.S[0]; j++ {
+				rawData[ii] = append(rawData[ii], a.X[i+j])
+			}
+			ii++
+		}
+		clusters := meta(rawData)
+		for i, v := range clusters {
+			fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
+		}
+		entropy(clusters)
+
+		fmt.Println()
+		rawData = make([][]float64, len(datum.Fisher))
+		for i, data := range datum.Fisher {
+			for _, value := range data.Measures {
+				rawData[i] = append(rawData[i], value/max)
+			}
+		}
+		clusters = meta(rawData)
+		for i, v := range clusters {
+			fmt.Printf("%3d %15s %d\n", i, datum.Fisher[i].Label, v)
+		}
+		entropy(clusters)
+
+		return true
+	})
 }
 
 var (
