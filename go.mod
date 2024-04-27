@@ -17,6 +17,7 @@ require (
 	github.com/pointlander/datum/iris v0.0.0-20200802052503-0ee610caba95 // indirect
 	github.com/pointlander/gradient v0.0.0-20240226214843-e3d2a19564fd // indirect
 	github.com/pointlander/kmeans v0.0.0-20230914045627-692e2a75e81b // indirect
+	github.com/pointlander/matrix v0.0.0-20240315204430-a9a552b72f75 // indirect
 	github.com/ziutek/blas v0.0.0-20190227122918-da4ca23e90bb // indirect
 	golang.org/x/image v0.11.0 // indirect
 	golang.org/x/text v0.12.0 // indirect

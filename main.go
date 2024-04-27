@@ -20,6 +20,7 @@ import (
 	"github.com/pointlander/datum/iris"
 	"github.com/pointlander/gradient/tf64"
 	"github.com/pointlander/kmeans"
+	"github.com/pointlander/matrix"
 )
 
 const (
@@ -617,6 +618,111 @@ func Multi() {
 
 }
 
+// X is the x mode
+func X() {
+	rng := matrix.Rand(1)
+
+	datum, err := iris.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	max := 0.0
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			if measure > max {
+				max = measure
+			}
+		}
+	}
+	input := matrix.NewMatrix(4, 150)
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			input.Data = append(input.Data, float32(measure/max))
+		}
+	}
+
+	optimizer := matrix.NewOptimizer(&rng, 8, .1, 4, func(samples []matrix.Sample, x ...matrix.Matrix) {
+		for index := range samples {
+			x1 := samples[index].Vars[0][0].Sample()
+			y1 := samples[index].Vars[0][1].Sample()
+			z1 := samples[index].Vars[0][2].Sample()
+			w1 := x1.Add(y1.H(z1))
+
+			x2 := samples[index].Vars[1][0].Sample()
+			y2 := samples[index].Vars[1][1].Sample()
+			z2 := samples[index].Vars[1][2].Sample()
+			b1 := x2.Add(y2.H(z2))
+
+			x3 := samples[index].Vars[2][0].Sample()
+			y3 := samples[index].Vars[2][1].Sample()
+			z3 := samples[index].Vars[2][2].Sample()
+			w2 := x3.Add(y3.H(z3))
+
+			x4 := samples[index].Vars[3][0].Sample()
+			y4 := samples[index].Vars[3][1].Sample()
+			z4 := samples[index].Vars[3][2].Sample()
+			b2 := x4.Add(y4.H(z4))
+
+			output := w2.MulT(w1.MulT(input).Add(b1).Everett()).Add(b2)
+
+			rawData := make([][]float64, output.Rows)
+			for i := 0; i < output.Rows; i++ {
+				for j := 0; j < output.Cols; j++ {
+					rawData[i] = append(rawData[i], float64(output.Data[i*output.Cols+j]))
+				}
+			}
+			meta := make([][]float64, output.Rows)
+			for i := range meta {
+				meta[i] = make([]float64, output.Rows)
+			}
+
+			for i := 0; i < 100; i++ {
+				clusters, _, err := kmeans.Kmeans(int64(i+1), rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+				if err != nil {
+					panic(err)
+				}
+				for i := range meta {
+					target := clusters[i]
+					for j, v := range clusters {
+						if v == target {
+							meta[i][j]++
+						}
+					}
+				}
+			}
+
+			entropy := 0.0
+			for i := range meta {
+				sum := 0.0
+				for _, value := range meta[i] {
+					sum += value
+				}
+				if sum == 0 {
+					continue
+				}
+				for _, value := range meta[i] {
+					if value == 0 {
+						continue
+					}
+					p := value / sum
+					entropy += p * math.Log(p)
+				}
+			}
+			samples[index].Cost = -entropy / float64(len(meta))
+		}
+	}, matrix.NewCoord(4, 4), matrix.NewCoord(4, 1), matrix.NewCoord(8, 8), matrix.NewCoord(8, 1))
+	last := -1.0
+	for {
+		s := optimizer.Iterate()
+		if last > 0 && math.Abs(last-s.Cost) < 1e-6 {
+			return
+		}
+		fmt.Println(s.Cost)
+		last = s.Cost
+	}
+}
+
 var (
 	// FlagXOR is the xor mode
 	FlagXOR = flag.Bool("xor", false, "xor mode")
@@ -624,6 +730,8 @@ var (
 	FlagIRIS = flag.Bool("iris", false, "iris mode")
 	// FlagMulti is the multi mode
 	FlagMulti = flag.Bool("multi", false, "multi mode")
+	// FlagX is x mode
+	FlagX = flag.Bool("x", false, "x mode")
 )
 
 func main() {
@@ -637,6 +745,9 @@ func main() {
 		return
 	} else if *FlagMulti {
 		Multi()
+		return
+	} else if *FlagX {
+		X()
 		return
 	}
 }
