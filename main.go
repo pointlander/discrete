@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -735,7 +736,80 @@ func X() {
 
 // Starlight is the starlight mode
 func Starlight() {
+	rng := matrix.Rand(1)
 
+	datum, err := iris.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	max := 0.0
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			if measure > max {
+				max = measure
+			}
+		}
+	}
+	input := matrix.NewMatrix(4, 150)
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			input.Data = append(input.Data, float32(measure/max))
+		}
+	}
+
+	_ = rng
+
+	for col := 0; col < input.Cols; col++ {
+		sort.Slice(datum.Fisher, func(i, j int) bool {
+			return datum.Fisher[i].Measures[col] < datum.Fisher[j].Measures[col]
+		})
+		/*input := matrix.NewMatrix(4, 150)
+		for _, data := range datum.Fisher {
+			for _, measure := range data.Measures {
+				input.Data = append(input.Data, float32(measure/max))
+			}
+		}*/
+		max, index := 0.0, 0
+		mean, count := 0.0, 0.0
+		for i := 0; i < len(datum.Fisher); i++ {
+			mean += datum.Fisher[i].Measures[col]
+			count++
+		}
+		mean /= count
+		stddev := 0.0
+		for i := 0; i < len(datum.Fisher); i++ {
+			diff := mean - datum.Fisher[i].Measures[col]
+			stddev += diff * diff
+		}
+		for i := 0; i < len(datum.Fisher)-1; i++ {
+			meanA, meanB := 0.0, 0.0
+			countA, countB := 0.0, 0.0
+			for j := 0; j < i+1; j++ {
+				meanA += datum.Fisher[j].Measures[col]
+				countA++
+			}
+			for j := i + 1; j < len(datum.Fisher); j++ {
+				meanB += datum.Fisher[j].Measures[col]
+				countB++
+			}
+			meanA /= countA
+			meanB /= countB
+			stddevA, stddevB := 0.0, 0.0
+			for j := 0; j < i+1; j++ {
+				diff := meanA - datum.Fisher[j].Measures[col]
+				stddevA += diff * diff
+			}
+			for j := i + 1; j < len(datum.Fisher); j++ {
+				diff := meanB - datum.Fisher[j].Measures[col]
+				stddevB += diff * diff
+			}
+			if v := stddev - (stddevA + stddevB); v > max {
+				max, index = v, i
+			}
+		}
+		fmt.Println(col, index, max)
+	}
 }
 
 var (
