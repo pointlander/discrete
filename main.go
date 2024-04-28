@@ -718,15 +718,9 @@ func X() {
 		}
 	}, matrix.NewCoord(4, 4), matrix.NewCoord(4, 1), matrix.NewCoord(8, 8), matrix.NewCoord(8, 1))
 	var sample matrix.Sample
-	last := -1.0
-	for {
-		s := optimizer.Iterate()
-		if last > 0 && math.Abs(last-s.Cost) < 1e-6 {
-			sample = s
-			break
-		}
-		fmt.Println(s.Cost)
-		last = s.Cost
+	for i := 0; i < 33; i++ {
+		sample = optimizer.Iterate()
+		fmt.Println(i, sample.Cost)
 	}
 
 	meta := process(sample)
