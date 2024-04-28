@@ -733,6 +733,11 @@ func X() {
 	}
 }
 
+// Starlight is the starlight mode
+func Starlight() {
+
+}
+
 var (
 	// FlagXOR is the xor mode
 	FlagXOR = flag.Bool("xor", false, "xor mode")
@@ -742,6 +747,8 @@ var (
 	FlagMulti = flag.Bool("multi", false, "multi mode")
 	// FlagX is x mode
 	FlagX = flag.Bool("x", false, "x mode")
+	// FlagStarlight is the starlight mode
+	FlagStarlight = flag.Bool("starlight", false, "starlight mode")
 )
 
 func main() {
@@ -758,6 +765,9 @@ func main() {
 		return
 	} else if *FlagX {
 		X()
+		return
+	} else if *FlagStarlight {
+		Starlight()
 		return
 	}
 }
