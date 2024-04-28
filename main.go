@@ -642,55 +642,60 @@ func X() {
 		}
 	}
 
-	optimizer := matrix.NewOptimizer(&rng, 8, .1, 4, func(samples []matrix.Sample, x ...matrix.Matrix) {
-		for index := range samples {
-			x1 := samples[index].Vars[0][0].Sample()
-			y1 := samples[index].Vars[0][1].Sample()
-			z1 := samples[index].Vars[0][2].Sample()
-			w1 := x1.Add(y1.H(z1))
+	process := func(sample matrix.Sample) [][]float64 {
+		x1 := sample.Vars[0][0].Sample()
+		y1 := sample.Vars[0][1].Sample()
+		z1 := sample.Vars[0][2].Sample()
+		w1 := x1.Add(y1.H(z1))
 
-			x2 := samples[index].Vars[1][0].Sample()
-			y2 := samples[index].Vars[1][1].Sample()
-			z2 := samples[index].Vars[1][2].Sample()
-			b1 := x2.Add(y2.H(z2))
+		x2 := sample.Vars[1][0].Sample()
+		y2 := sample.Vars[1][1].Sample()
+		z2 := sample.Vars[1][2].Sample()
+		b1 := x2.Add(y2.H(z2))
 
-			x3 := samples[index].Vars[2][0].Sample()
-			y3 := samples[index].Vars[2][1].Sample()
-			z3 := samples[index].Vars[2][2].Sample()
-			w2 := x3.Add(y3.H(z3))
+		x3 := sample.Vars[2][0].Sample()
+		y3 := sample.Vars[2][1].Sample()
+		z3 := sample.Vars[2][2].Sample()
+		w2 := x3.Add(y3.H(z3))
 
-			x4 := samples[index].Vars[3][0].Sample()
-			y4 := samples[index].Vars[3][1].Sample()
-			z4 := samples[index].Vars[3][2].Sample()
-			b2 := x4.Add(y4.H(z4))
+		x4 := sample.Vars[3][0].Sample()
+		y4 := sample.Vars[3][1].Sample()
+		z4 := sample.Vars[3][2].Sample()
+		b2 := x4.Add(y4.H(z4))
 
-			output := w2.MulT(w1.MulT(input).Add(b1).Everett()).Add(b2)
+		output := w2.MulT(w1.MulT(input).Add(b1).Everett()).Add(b2)
 
-			rawData := make([][]float64, output.Rows)
-			for i := 0; i < output.Rows; i++ {
-				for j := 0; j < output.Cols; j++ {
-					rawData[i] = append(rawData[i], float64(output.Data[i*output.Cols+j]))
-				}
+		rawData := make([][]float64, output.Rows)
+		for i := 0; i < output.Rows; i++ {
+			for j := 0; j < output.Cols; j++ {
+				rawData[i] = append(rawData[i], float64(output.Data[i*output.Cols+j]))
 			}
-			meta := make([][]float64, output.Rows)
+		}
+		meta := make([][]float64, output.Rows)
+		for i := range meta {
+			meta[i] = make([]float64, output.Rows)
+		}
+
+		for i := 0; i < 100; i++ {
+			clusters, _, err := kmeans.Kmeans(int64(i+1), rawData, 3, kmeans.SquaredEuclideanDistance, -1)
+			if err != nil {
+				panic(err)
+			}
 			for i := range meta {
-				meta[i] = make([]float64, output.Rows)
-			}
-
-			for i := 0; i < 100; i++ {
-				clusters, _, err := kmeans.Kmeans(int64(i+1), rawData, 3, kmeans.SquaredEuclideanDistance, -1)
-				if err != nil {
-					panic(err)
-				}
-				for i := range meta {
-					target := clusters[i]
-					for j, v := range clusters {
-						if v == target {
-							meta[i][j]++
-						}
+				target := clusters[i]
+				for j, v := range clusters {
+					if v == target {
+						meta[i][j]++
 					}
 				}
 			}
+		}
+
+		return meta
+	}
+	optimizer := matrix.NewOptimizer(&rng, 8, .1, 4, func(samples []matrix.Sample, x ...matrix.Matrix) {
+		for index := range samples {
+			meta := process(samples[index])
 
 			entropy := 0.0
 			for i := range meta {
@@ -724,54 +729,7 @@ func X() {
 		last = s.Cost
 	}
 
-	x1 := sample.Vars[0][0].Sample()
-	y1 := sample.Vars[0][1].Sample()
-	z1 := sample.Vars[0][2].Sample()
-	w1 := x1.Add(y1.H(z1))
-
-	x2 := sample.Vars[1][0].Sample()
-	y2 := sample.Vars[1][1].Sample()
-	z2 := sample.Vars[1][2].Sample()
-	b1 := x2.Add(y2.H(z2))
-
-	x3 := sample.Vars[2][0].Sample()
-	y3 := sample.Vars[2][1].Sample()
-	z3 := sample.Vars[2][2].Sample()
-	w2 := x3.Add(y3.H(z3))
-
-	x4 := sample.Vars[3][0].Sample()
-	y4 := sample.Vars[3][1].Sample()
-	z4 := sample.Vars[3][2].Sample()
-	b2 := x4.Add(y4.H(z4))
-
-	output := w2.MulT(w1.MulT(input).Add(b1).Everett()).Add(b2)
-
-	rawData := make([][]float64, output.Rows)
-	for i := 0; i < output.Rows; i++ {
-		for j := 0; j < output.Cols; j++ {
-			rawData[i] = append(rawData[i], float64(output.Data[i*output.Cols+j]))
-		}
-	}
-	meta := make([][]float64, output.Rows)
-	for i := range meta {
-		meta[i] = make([]float64, output.Rows)
-	}
-
-	for i := 0; i < 100; i++ {
-		clusters, _, err := kmeans.Kmeans(int64(i+1), rawData, 3, kmeans.SquaredEuclideanDistance, -1)
-		if err != nil {
-			panic(err)
-		}
-		for i := range meta {
-			target := clusters[i]
-			for j, v := range clusters {
-				if v == target {
-					meta[i][j]++
-				}
-			}
-		}
-	}
-
+	meta := process(sample)
 	clusters, _, err := kmeans.Kmeans(1, meta, 3, kmeans.SquaredEuclideanDistance, -1)
 	if err != nil {
 		panic(err)
