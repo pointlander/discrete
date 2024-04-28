@@ -716,7 +716,7 @@ func X() {
 			}
 			samples[index].Cost = -entropy / float64(len(meta))
 		}
-	}, matrix.NewCoord(4, 4), matrix.NewCoord(4, 1), matrix.NewCoord(8, 8), matrix.NewCoord(8, 1))
+	}, matrix.NewCoord(4, 8), matrix.NewCoord(8, 1), matrix.NewCoord(16, 16), matrix.NewCoord(16, 1))
 	var sample matrix.Sample
 	for i := 0; i < 33; i++ {
 		sample = optimizer.Iterate()
