@@ -759,57 +759,106 @@ func Starlight() {
 	}
 
 	_ = rng
-
-	for col := 0; col < input.Cols; col++ {
-		sort.Slice(datum.Fisher, func(i, j int) bool {
-			return datum.Fisher[i].Measures[col] < datum.Fisher[j].Measures[col]
-		})
-		/*input := matrix.NewMatrix(4, 150)
-		for _, data := range datum.Fisher {
-			for _, measure := range data.Measures {
-				input.Data = append(input.Data, float32(measure/max))
-			}
-		}*/
-		max, index := 0.0, 0
-		mean, count := 0.0, 0.0
-		for i := 0; i < len(datum.Fisher); i++ {
-			mean += datum.Fisher[i].Measures[col]
-			count++
-		}
-		mean /= count
-		stddev := 0.0
-		for i := 0; i < len(datum.Fisher); i++ {
-			diff := mean - datum.Fisher[i].Measures[col]
-			stddev += diff * diff
-		}
-		for i := 0; i < len(datum.Fisher)-1; i++ {
-			meanA, meanB := 0.0, 0.0
-			countA, countB := 0.0, 0.0
-			for j := 0; j < i+1; j++ {
-				meanA += datum.Fisher[j].Measures[col]
-				countA++
-			}
-			for j := i + 1; j < len(datum.Fisher); j++ {
-				meanB += datum.Fisher[j].Measures[col]
-				countB++
-			}
-			meanA /= countA
-			meanB /= countB
-			stddevA, stddevB := 0.0, 0.0
-			for j := 0; j < i+1; j++ {
-				diff := meanA - datum.Fisher[j].Measures[col]
-				stddevA += diff * diff
-			}
-			for j := i + 1; j < len(datum.Fisher); j++ {
-				diff := meanB - datum.Fisher[j].Measures[col]
-				stddevB += diff * diff
-			}
-			if v := stddev - (stddevA + stddevB); v > max {
-				max, index = v, i
-			}
-		}
-		fmt.Println(col, index, max)
+	type Split struct {
+		Col   int
+		Index int
+		Var   float64
 	}
+	type Bounds struct {
+		Begin int
+		End   int
+	}
+	split := func(bounds []Bounds) []Split {
+		splits := make([]Split, 0, 8)
+		for col := 0; col < input.Cols; col++ {
+			sort.Slice(datum.Fisher, func(i, j int) bool {
+				return datum.Fisher[i].Measures[col] < datum.Fisher[j].Measures[col]
+			})
+
+			max, index := 0.0, 0
+			mean, count := 0.0, 0.0
+			for i := bounds[col].Begin; i < bounds[col].End; i++ {
+				mean += datum.Fisher[i].Measures[col]
+				count++
+			}
+			mean /= count
+			stddev := 0.0
+			for i := bounds[col].Begin; i < bounds[col].End; i++ {
+				diff := mean - datum.Fisher[i].Measures[col]
+				stddev += diff * diff
+			}
+			for i := bounds[col].Begin; i < bounds[col].End-1; i++ {
+				meanA, meanB := 0.0, 0.0
+				countA, countB := 0.0, 0.0
+				for j := bounds[col].Begin; j < i+1; j++ {
+					meanA += datum.Fisher[j].Measures[col]
+					countA++
+				}
+				for j := i + 1; j < bounds[col].End; j++ {
+					meanB += datum.Fisher[j].Measures[col]
+					countB++
+				}
+				meanA /= countA
+				meanB /= countB
+				stddevA, stddevB := 0.0, 0.0
+				for j := bounds[col].Begin; j < i+1; j++ {
+					diff := meanA - datum.Fisher[j].Measures[col]
+					stddevA += diff * diff
+				}
+				for j := i + 1; j < bounds[col].End; j++ {
+					diff := meanB - datum.Fisher[j].Measures[col]
+					stddevB += diff * diff
+				}
+				if v := stddev - (stddevA + stddevB); v > max {
+					max, index = v, i
+				}
+			}
+			splits = append(splits, Split{
+				Col:   col,
+				Index: index,
+				Var:   max,
+			})
+		}
+		return splits
+	}
+	/*input := matrix.NewMatrix(4, 150)
+	for _, data := range datum.Fisher {
+		for _, measure := range data.Measures {
+			input.Data = append(input.Data, float32(measure/max))
+		}
+	}*/
+	bounds := make([]Bounds, 0, 8)
+	for i := 0; i < 4; i++ {
+		bounds = append(bounds, Bounds{
+			Begin: 0,
+			End:   len(datum.Fisher),
+		})
+	}
+	splits := split(bounds)
+	boundsUpper := make([]Bounds, 0, 8)
+	boundsLower := make([]Bounds, 0, 8)
+	for i := range splits {
+		boundsUpper = append(boundsUpper, Bounds{
+			Begin: 0,
+			End:   splits[i].Index,
+		})
+		boundsLower = append(boundsLower, Bounds{
+			Begin: splits[i].Index,
+			End:   len(datum.Fisher),
+		})
+	}
+	splitsA := split(boundsUpper)
+	splitsB := split(boundsLower)
+	maximum := make([]Split, 0, 8)
+	for i := range splitsA {
+		if splitsA[i].Var > splitsB[i].Var {
+			maximum = append(maximum, splitsA[i])
+		} else {
+			maximum = append(maximum, splitsB[i])
+		}
+	}
+	fmt.Println(splits)
+	fmt.Println(maximum)
 }
 
 var (
