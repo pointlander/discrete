@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"math"
@@ -18,6 +19,7 @@ import (
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 
+	"github.com/pointlander/compress"
 	"github.com/pointlander/datum/iris"
 	"github.com/pointlander/gradient/tf64"
 	"github.com/pointlander/kmeans"
@@ -884,19 +886,39 @@ func Starlight() {
 			Begin: splits[i].Index,
 			End:   len(datum.Fisher),
 		})
+		for j := splits[i].Index; j < len(datum.Fisher); j++ {
+			vectors.Vectors[j].Labels[i] = 1
+		}
 	}
 	splitsA := split(boundsUpper)
 	splitsB := split(boundsLower)
 	maximum := make([]Split, 0, 8)
 	for i := range splitsA {
 		if splitsA[i].Var > splitsB[i].Var {
+			for j := splitsA[i].Index; j < splits[i].Index; j++ {
+				vectors.Vectors[j].Labels[i] = 2
+			}
 			maximum = append(maximum, splitsA[i])
 		} else {
+			for j := splitsB[i].Index; j < len(datum.Fisher); j++ {
+				vectors.Vectors[j].Labels[i] = 2
+			}
 			maximum = append(maximum, splitsB[i])
 		}
 	}
 	fmt.Println(splits)
 	fmt.Println(maximum)
+	vectors.Col = 0
+	rand.Shuffle(len(vectors.Vectors), func(i, j int) {
+		vectors.Vectors[i], vectors.Vectors[j] = vectors.Vectors[j], vectors.Vectors[i]
+	})
+	labels := make([]uint8, 0, 8)
+	for _, vector := range vectors.Vectors {
+		labels = append(labels, vector.Labels...)
+	}
+	buffer := bytes.Buffer{}
+	compress.Mark1Compress1(labels, &buffer)
+	fmt.Println(buffer.Len(), float64(buffer.Len())/float64(4*len(vectors.Vectors)))
 }
 
 var (
