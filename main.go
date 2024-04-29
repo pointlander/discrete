@@ -734,6 +734,33 @@ func X() {
 	}
 }
 
+// Vector is a vector with labels
+type Vector struct {
+	Vector []float64
+	Labels []uint8
+}
+
+// Vectors is a set of vectors
+type Vectors struct {
+	Vectors []Vector
+	Col     int
+}
+
+// Len is the length of Vectors
+func (v Vectors) Len() int {
+	return len(v.Vectors)
+}
+
+// Less is true of vector i is less than vector j
+func (v Vectors) Less(i, j int) bool {
+	return v.Vectors[i].Vector[v.Col] < v.Vectors[j].Vector[v.Col]
+}
+
+// Swap swaps two vectors
+func (v Vectors) Swap(i, j int) {
+	v.Vectors[i], v.Vectors[j] = v.Vectors[j], v.Vectors[i]
+}
+
 // Starlight is the starlight mode
 func Starlight() {
 	rng := matrix.Rand(1)
@@ -751,12 +778,24 @@ func Starlight() {
 			}
 		}
 	}
-	input := matrix.NewMatrix(4, 150)
+	vectors := Vectors{
+		Vectors: make([]Vector, len(datum.Fisher)),
+	}
+	for i := range vectors.Vectors {
+		vector := make([]float64, len(datum.Fisher[i].Measures))
+		labels := make([]uint8, len(datum.Fisher[i].Measures))
+		copy(vector, datum.Fisher[i].Measures)
+		vectors.Vectors[i] = Vector{
+			Vector: vector,
+			Labels: labels,
+		}
+	}
+	/*input := matrix.NewMatrix(4, 150)
 	for _, data := range datum.Fisher {
 		for _, measure := range data.Measures {
 			input.Data = append(input.Data, float32(measure/max))
 		}
-	}
+	}*/
 
 	_ = rng
 	type Split struct {
@@ -770,43 +809,42 @@ func Starlight() {
 	}
 	split := func(bounds []Bounds) []Split {
 		splits := make([]Split, 0, 8)
-		for col := 0; col < input.Cols; col++ {
-			sort.Slice(datum.Fisher, func(i, j int) bool {
-				return datum.Fisher[i].Measures[col] < datum.Fisher[j].Measures[col]
-			})
+		for col := 0; col < 4; col++ {
+			vectors.Col = col
+			sort.Sort(vectors)
 
 			max, index := 0.0, 0
 			mean, count := 0.0, 0.0
 			for i := bounds[col].Begin; i < bounds[col].End; i++ {
-				mean += datum.Fisher[i].Measures[col]
+				mean += vectors.Vectors[i].Vector[col]
 				count++
 			}
 			mean /= count
 			stddev := 0.0
 			for i := bounds[col].Begin; i < bounds[col].End; i++ {
-				diff := mean - datum.Fisher[i].Measures[col]
+				diff := mean - vectors.Vectors[i].Vector[col]
 				stddev += diff * diff
 			}
 			for i := bounds[col].Begin; i < bounds[col].End-1; i++ {
 				meanA, meanB := 0.0, 0.0
 				countA, countB := 0.0, 0.0
 				for j := bounds[col].Begin; j < i+1; j++ {
-					meanA += datum.Fisher[j].Measures[col]
+					meanA += vectors.Vectors[j].Vector[col]
 					countA++
 				}
 				for j := i + 1; j < bounds[col].End; j++ {
-					meanB += datum.Fisher[j].Measures[col]
+					meanB += vectors.Vectors[j].Vector[col]
 					countB++
 				}
 				meanA /= countA
 				meanB /= countB
 				stddevA, stddevB := 0.0, 0.0
 				for j := bounds[col].Begin; j < i+1; j++ {
-					diff := meanA - datum.Fisher[j].Measures[col]
+					diff := meanA - vectors.Vectors[j].Vector[col]
 					stddevA += diff * diff
 				}
 				for j := i + 1; j < bounds[col].End; j++ {
-					diff := meanB - datum.Fisher[j].Measures[col]
+					diff := meanB - vectors.Vectors[j].Vector[col]
 					stddevB += diff * diff
 				}
 				if v := stddev - (stddevA + stddevB); v > max {
