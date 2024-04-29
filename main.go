@@ -744,29 +744,62 @@ type Vector struct {
 
 // Vectors is a set of vectors
 type Vectors struct {
+	Width   int
 	Vectors []Vector
-	Col     int
+	Rng     *rand.Rand
+}
+
+// Size is the size of vectors
+func (v *Vectors) Size() int {
+	return v.Width * len(v.Vectors)
+}
+
+// Sort sorts vectors by a column
+func (v *Vectors) Sort(col int) {
+	s := Sorter{
+		Vec: v,
+		Col: col,
+	}
+	sort.Sort(s)
+}
+
+// K computes the K complexity
+func (v *Vectors) K() int {
+	v.Rng.Shuffle(len(v.Vectors), func(i, j int) {
+		v.Vectors[i], v.Vectors[j] = v.Vectors[j], v.Vectors[i]
+	})
+	labels := make([]uint8, 0, 8)
+	for _, vector := range v.Vectors {
+		labels = append(labels, vector.Labels...)
+	}
+	buffer := bytes.Buffer{}
+	compress.Mark1Compress1(labels, &buffer)
+	return buffer.Len()
+}
+
+// Vectors is a set of vectors
+type Sorter struct {
+	Vec *Vectors
+	Col int
 }
 
 // Len is the length of Vectors
-func (v Vectors) Len() int {
-	return len(v.Vectors)
+func (s Sorter) Len() int {
+	return len(s.Vec.Vectors)
 }
 
 // Less is true of vector i is less than vector j
-func (v Vectors) Less(i, j int) bool {
-	return v.Vectors[i].Vector[v.Col] < v.Vectors[j].Vector[v.Col]
+func (s Sorter) Less(i, j int) bool {
+	return s.Vec.Vectors[i].Vector[s.Col] < s.Vec.Vectors[j].Vector[s.Col]
 }
 
 // Swap swaps two vectors
-func (v Vectors) Swap(i, j int) {
-	v.Vectors[i], v.Vectors[j] = v.Vectors[j], v.Vectors[i]
+func (s Sorter) Swap(i, j int) {
+	s.Vec.Vectors[i], s.Vec.Vectors[j] = s.Vec.Vectors[j], s.Vec.Vectors[i]
 }
 
 // Starlight is the starlight mode
 func Starlight() {
-	rng := matrix.Rand(1)
-
 	datum, err := iris.Load()
 	if err != nil {
 		panic(err)
@@ -781,7 +814,9 @@ func Starlight() {
 		}
 	}
 	vectors := Vectors{
+		Width:   4,
 		Vectors: make([]Vector, len(datum.Fisher)),
+		Rng:     rand.New(rand.NewSource(1)),
 	}
 	for i := range vectors.Vectors {
 		vector := make([]float64, len(datum.Fisher[i].Measures))
@@ -799,7 +834,6 @@ func Starlight() {
 		}
 	}*/
 
-	_ = rng
 	type Split struct {
 		Col   int
 		Index int
@@ -811,9 +845,8 @@ func Starlight() {
 	}
 	split := func(bounds []Bounds) []Split {
 		splits := make([]Split, 0, 8)
-		for col := 0; col < 4; col++ {
-			vectors.Col = col
-			sort.Sort(vectors)
+		for col := 0; col < vectors.Width; col++ {
+			vectors.Sort(col)
 
 			max, index := 0.0, 0
 			mean, count := 0.0, 0.0
@@ -908,17 +941,8 @@ func Starlight() {
 	}
 	fmt.Println(splits)
 	fmt.Println(maximum)
-	vectors.Col = 0
-	rand.Shuffle(len(vectors.Vectors), func(i, j int) {
-		vectors.Vectors[i], vectors.Vectors[j] = vectors.Vectors[j], vectors.Vectors[i]
-	})
-	labels := make([]uint8, 0, 8)
-	for _, vector := range vectors.Vectors {
-		labels = append(labels, vector.Labels...)
-	}
-	buffer := bytes.Buffer{}
-	compress.Mark1Compress1(labels, &buffer)
-	fmt.Println(buffer.Len(), float64(buffer.Len())/float64(4*len(vectors.Vectors)))
+	length := vectors.K()
+	fmt.Println(length, float64(length)/float64(vectors.Size()))
 }
 
 var (
