@@ -21,6 +21,7 @@ import (
 
 	"github.com/pointlander/compress"
 	"github.com/pointlander/datum/iris"
+	means "github.com/pointlander/discrete/kmeans"
 	"github.com/pointlander/gradient/tf64"
 	"github.com/pointlander/kmeans"
 	"github.com/pointlander/matrix"
@@ -887,6 +888,43 @@ func Starlight() {
 		}
 	}
 
+	entropy := func(clusters []int) {
+		ab, ba := [3][3]float64{}, [3][3]float64{}
+		for i := range datum.Fisher {
+			a := int(iris.Labels[datum.Fisher[i].Label])
+			b := clusters[i]
+			ab[a][b]++
+			ba[b][a]++
+		}
+		entropy := 0.0
+		for i := 0; i < 3; i++ {
+			entropy += (1.0 / 3.0) * math.Log(1.0/3.0)
+		}
+		fmt.Println(-entropy, -(1.0/3.0)*math.Log(1.0/3.0))
+		for i := range ab {
+			entropy := 0.0
+			for _, value := range ab[i] {
+				if value > 0 {
+					p := value / 150
+					entropy += p * math.Log(p)
+				}
+			}
+			entropy = -entropy
+			fmt.Println("ab", i, entropy)
+		}
+		for i := range ba {
+			entropy := 0.0
+			for _, value := range ba[i] {
+				if value > 0 {
+					p := value / 150
+					entropy += p * math.Log(p)
+				}
+			}
+			entropy = -entropy
+			fmt.Println("ba", i, entropy)
+		}
+	}
+
 	process := func(index int, sample matrix.Sample) Vectors {
 		x1 := sample.Vars[0][0].Sample()
 		y1 := sample.Vars[0][1].Sample()
@@ -977,9 +1015,28 @@ func Starlight() {
 		fmt.Println(i, sample.Cost)
 	}
 	vectors := process(0, sample)
+	rawData := make([][]float64, len(vectors.Vectors))
 	for i := range vectors.Vectors {
-		fmt.Println(datum.Fisher[i].Label, vectors.Vectors[i].Labels)
+		rawData[i] = make([]float64, len(vectors.Vectors))
+		for j := range rawData[i] {
+			diff := 0.0
+			for k, a := range vectors.Vectors[i].Labels {
+				b := vectors.Vectors[j].Labels[k]
+				if a != b {
+					diff++
+				}
+			}
+			rawData[i][j] = diff
+		}
 	}
+	clusters, _, err := means.Kmeans(1, rawData, 3, means.SquaredEuclideanDistance, -1)
+	if err != nil {
+		panic(err)
+	}
+	for i := range vectors.Vectors {
+		fmt.Println(clusters[i], datum.Fisher[i].Label, vectors.Vectors[i].Labels)
+	}
+	entropy(clusters)
 }
 
 var (
