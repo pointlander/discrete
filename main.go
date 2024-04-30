@@ -821,7 +821,7 @@ func (v *Vectors) Split(bounds []Bounds) []Split {
 		}
 		splits = append(splits, Split{
 			Col:   col,
-			Index: index,
+			Index: index + 1,
 			Var:   max,
 		})
 	}
