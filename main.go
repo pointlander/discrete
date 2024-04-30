@@ -763,6 +763,71 @@ func (v *Vectors) Sort(col int) {
 	sort.Sort(s)
 }
 
+// Bounds are the range over which to compute the split
+type Bounds struct {
+	Begin int
+	End   int
+}
+
+// Split the split point
+type Split struct {
+	Col   int
+	Index int
+	Var   float64
+}
+
+func (v *Vectors) Split(bounds []Bounds) []Split {
+	splits := make([]Split, 0, 8)
+	for col := 0; col < v.Width; col++ {
+		v.Sort(col)
+
+		max, index := 0.0, 0
+		mean, count := 0.0, 0.0
+		for i := bounds[col].Begin; i < bounds[col].End; i++ {
+			mean += v.Vectors[i].Vector[col]
+			count++
+		}
+		mean /= count
+		stddev := 0.0
+		for i := bounds[col].Begin; i < bounds[col].End; i++ {
+			diff := mean - v.Vectors[i].Vector[col]
+			stddev += diff * diff
+		}
+		for i := bounds[col].Begin; i < bounds[col].End-1; i++ {
+			meanA, meanB := 0.0, 0.0
+			countA, countB := 0.0, 0.0
+			for j := bounds[col].Begin; j < i+1; j++ {
+				meanA += v.Vectors[j].Vector[col]
+				countA++
+			}
+			for j := i + 1; j < bounds[col].End; j++ {
+				meanB += v.Vectors[j].Vector[col]
+				countB++
+			}
+			meanA /= countA
+			meanB /= countB
+			stddevA, stddevB := 0.0, 0.0
+			for j := bounds[col].Begin; j < i+1; j++ {
+				diff := meanA - v.Vectors[j].Vector[col]
+				stddevA += diff * diff
+			}
+			for j := i + 1; j < bounds[col].End; j++ {
+				diff := meanB - v.Vectors[j].Vector[col]
+				stddevB += diff * diff
+			}
+			if v := stddev - (stddevA + stddevB); v > max {
+				max, index = v, i
+			}
+		}
+		splits = append(splits, Split{
+			Col:   col,
+			Index: index,
+			Var:   max,
+		})
+	}
+	return splits
+}
+
 // K computes the K complexity
 func (v *Vectors) K() int {
 	v.Rng.Shuffle(len(v.Vectors), func(i, j int) {
@@ -800,6 +865,8 @@ func (s Sorter) Swap(i, j int) {
 
 // Starlight is the starlight mode
 func Starlight() {
+	rng := matrix.Rand(1)
+
 	datum, err := iris.Load()
 	if err != nil {
 		panic(err)
@@ -813,136 +880,106 @@ func Starlight() {
 			}
 		}
 	}
-	vectors := Vectors{
-		Width:   4,
-		Vectors: make([]Vector, len(datum.Fisher)),
-		Rng:     rand.New(rand.NewSource(1)),
-	}
-	for i := range vectors.Vectors {
-		vector := make([]float64, len(datum.Fisher[i].Measures))
-		labels := make([]uint8, len(datum.Fisher[i].Measures))
-		copy(vector, datum.Fisher[i].Measures)
-		vectors.Vectors[i] = Vector{
-			Vector: vector,
-			Labels: labels,
-		}
-	}
-	/*input := matrix.NewMatrix(4, 150)
+	input := matrix.NewMatrix(4, 150)
 	for _, data := range datum.Fisher {
 		for _, measure := range data.Measures {
 			input.Data = append(input.Data, float32(measure/max))
 		}
-	}*/
-
-	type Split struct {
-		Col   int
-		Index int
-		Var   float64
 	}
-	type Bounds struct {
-		Begin int
-		End   int
-	}
-	split := func(bounds []Bounds) []Split {
-		splits := make([]Split, 0, 8)
-		for col := 0; col < vectors.Width; col++ {
-			vectors.Sort(col)
 
-			max, index := 0.0, 0
-			mean, count := 0.0, 0.0
-			for i := bounds[col].Begin; i < bounds[col].End; i++ {
-				mean += vectors.Vectors[i].Vector[col]
-				count++
+	process := func(index int, sample matrix.Sample) Vectors {
+		x1 := sample.Vars[0][0].Sample()
+		y1 := sample.Vars[0][1].Sample()
+		z1 := sample.Vars[0][2].Sample()
+		w1 := x1.Add(y1.H(z1))
+
+		x2 := sample.Vars[1][0].Sample()
+		y2 := sample.Vars[1][1].Sample()
+		z2 := sample.Vars[1][2].Sample()
+		b1 := x2.Add(y2.H(z2))
+
+		x3 := sample.Vars[2][0].Sample()
+		y3 := sample.Vars[2][1].Sample()
+		z3 := sample.Vars[2][2].Sample()
+		w2 := x3.Add(y3.H(z3))
+
+		x4 := sample.Vars[3][0].Sample()
+		y4 := sample.Vars[3][1].Sample()
+		z4 := sample.Vars[3][2].Sample()
+		b2 := x4.Add(y4.H(z4))
+
+		output := w2.MulT(w1.MulT(input).Add(b1).Everett()).Add(b2)
+
+		vectors := Vectors{
+			Width:   output.Cols,
+			Vectors: make([]Vector, output.Rows),
+			Rng:     rand.New(rand.NewSource(int64(index) + 1)),
+		}
+		for i := range vectors.Vectors {
+			vector := make([]float64, vectors.Width)
+			labels := make([]uint8, vectors.Width)
+			for j := range vector {
+				vector[j] = float64(output.Data[i*output.Cols+j])
 			}
-			mean /= count
-			stddev := 0.0
-			for i := bounds[col].Begin; i < bounds[col].End; i++ {
-				diff := mean - vectors.Vectors[i].Vector[col]
-				stddev += diff * diff
+			vectors.Vectors[i] = Vector{
+				Vector: vector,
+				Labels: labels,
 			}
-			for i := bounds[col].Begin; i < bounds[col].End-1; i++ {
-				meanA, meanB := 0.0, 0.0
-				countA, countB := 0.0, 0.0
-				for j := bounds[col].Begin; j < i+1; j++ {
-					meanA += vectors.Vectors[j].Vector[col]
-					countA++
-				}
-				for j := i + 1; j < bounds[col].End; j++ {
-					meanB += vectors.Vectors[j].Vector[col]
-					countB++
-				}
-				meanA /= countA
-				meanB /= countB
-				stddevA, stddevB := 0.0, 0.0
-				for j := bounds[col].Begin; j < i+1; j++ {
-					diff := meanA - vectors.Vectors[j].Vector[col]
-					stddevA += diff * diff
-				}
-				for j := i + 1; j < bounds[col].End; j++ {
-					diff := meanB - vectors.Vectors[j].Vector[col]
-					stddevB += diff * diff
-				}
-				if v := stddev - (stddevA + stddevB); v > max {
-					max, index = v, i
-				}
-			}
-			splits = append(splits, Split{
-				Col:   col,
-				Index: index,
-				Var:   max,
+		}
+
+		bounds := make([]Bounds, 0, 8)
+		for i := 0; i < vectors.Width; i++ {
+			bounds = append(bounds, Bounds{
+				Begin: 0,
+				End:   len(vectors.Vectors),
 			})
 		}
-		return splits
-	}
-	/*input := matrix.NewMatrix(4, 150)
-	for _, data := range datum.Fisher {
-		for _, measure := range data.Measures {
-			input.Data = append(input.Data, float32(measure/max))
-		}
-	}*/
-	bounds := make([]Bounds, 0, 8)
-	for i := 0; i < 4; i++ {
-		bounds = append(bounds, Bounds{
-			Begin: 0,
-			End:   len(datum.Fisher),
-		})
-	}
-	splits := split(bounds)
-	boundsUpper := make([]Bounds, 0, 8)
-	boundsLower := make([]Bounds, 0, 8)
-	for i := range splits {
-		boundsUpper = append(boundsUpper, Bounds{
-			Begin: 0,
-			End:   splits[i].Index,
-		})
-		boundsLower = append(boundsLower, Bounds{
-			Begin: splits[i].Index,
-			End:   len(datum.Fisher),
-		})
-		for j := splits[i].Index; j < len(datum.Fisher); j++ {
-			vectors.Vectors[j].Labels[i] = 1
-		}
-	}
-	splitsA := split(boundsUpper)
-	splitsB := split(boundsLower)
-	maximum := make([]Split, 0, 8)
-	for i := range splitsA {
-		if splitsA[i].Var > splitsB[i].Var {
-			for j := splitsA[i].Index; j < splits[i].Index; j++ {
-				vectors.Vectors[j].Labels[i] = 2
+		splits := vectors.Split(bounds)
+		boundsUpper := make([]Bounds, 0, 8)
+		boundsLower := make([]Bounds, 0, 8)
+		for i := range splits {
+			boundsUpper = append(boundsUpper, Bounds{
+				Begin: 0,
+				End:   splits[i].Index,
+			})
+			boundsLower = append(boundsLower, Bounds{
+				Begin: splits[i].Index,
+				End:   len(vectors.Vectors),
+			})
+			for j := splits[i].Index; j < len(vectors.Vectors); j++ {
+				vectors.Vectors[j].Labels[i] = 1
 			}
-			maximum = append(maximum, splitsA[i])
-		} else {
-			for j := splitsB[i].Index; j < len(datum.Fisher); j++ {
-				vectors.Vectors[j].Labels[i] = 2
-			}
-			maximum = append(maximum, splitsB[i])
 		}
+		splitsA := vectors.Split(boundsUpper)
+		splitsB := vectors.Split(boundsLower)
+		for i := range splitsA {
+			if splitsA[i].Var > splitsB[i].Var {
+				for j := splitsA[i].Index; j < splits[i].Index; j++ {
+					vectors.Vectors[j].Labels[i] = 2
+				}
+			} else {
+				for j := splitsB[i].Index; j < len(vectors.Vectors); j++ {
+					vectors.Vectors[j].Labels[i] = 2
+				}
+			}
+		}
+		return vectors
 	}
-	fmt.Println(splits)
-	fmt.Println(maximum)
-	length := vectors.K()
-	fmt.Println(length, float64(length)/float64(vectors.Size()))
+	optimizer := matrix.NewOptimizer(&rng, 8, .1, 4, func(samples []matrix.Sample, x ...matrix.Matrix) {
+		for index := range samples {
+			vectors := process(index, samples[index])
+			samples[index].Cost = float64(vectors.K())
+		}
+	}, matrix.NewCoord(4, 8), matrix.NewCoord(8, 1), matrix.NewCoord(16, 16), matrix.NewCoord(16, 1))
+	var sample matrix.Sample
+	for i := 0; i < 33; i++ {
+		sample = optimizer.Iterate()
+		fmt.Println(i, sample.Cost)
+	}
+	vectors := process(0, sample)
+	for i := range vectors.Vectors {
+		fmt.Println(datum.Fisher[i].Label, vectors.Vectors[i].Labels)
+	}
 }
 
 var (
